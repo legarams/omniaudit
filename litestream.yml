@@ -1,0 +1,26 @@
+# litestream.yml — SQLite WAL replication config
+# Litestream continuously streams the SQLite WAL to Tigris (Fly's S3-compatible
+# object storage, 5 GB free). On cold start it restores the latest snapshot
+# before handing control to uvicorn.
+#
+# Required secrets (fly secrets set):
+#   LITESTREAM_ACCESS_KEY_ID      — from: fly storage create --name omniaudit-db
+#   LITESTREAM_SECRET_ACCESS_KEY  — from same command
+#
+# LITESTREAM_REPLICA_URL is set in fly.toml [env]:
+#   s3://omniaudit-db/omniaudit.db
+
+dbs:
+  - path: ${SQLITE_PATH}
+    replicas:
+      - url: ${LITESTREAM_REPLICA_URL}
+        access-key-id:     ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # Tigris endpoint — Fly's built-in S3-compatible object store
+        endpoint: https://fly.storage.tigris.dev
+        force-path-style: true
+        # Retention: keep 24h of WAL segments for point-in-time restore
+        retention: 24h
+        retention-check-interval: 1h
+        # Sync frequently — minimises data loss window on crash
+        sync-interval: 10s

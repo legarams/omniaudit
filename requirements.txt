@@ -1,0 +1,31 @@
+# OmniAudit — Python dependencies
+
+# API framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+
+# HTTP
+httpx==0.27.2
+
+# Database — both backends; active one selected by DB_BACKEND env var
+asyncpg==0.29.0     # postgres backend
+aiosqlite==0.20.0   # sqlite backend (fly free tier, local dev)
+
+# Scanning
+yara-python==4.5.1
+detect-secrets==1.5.0
+# semgrep installed separately in Dockerfile
+
+# Crypto / signing
+cryptography==43.0.1
+
+# Gemini LLM — 0.8.x is legacy, migration path is google-genai
+google-generativeai==0.8.3
+
+# MCP server — exposes OmniAudit as tools for Claude Desktop, Cursor, VS Code
+# Provides FastMCP high-level API and streamable HTTP transport
+mcp[cli]>=1.3.0
+
+# Async
+anyio==4.6.0

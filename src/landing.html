@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniAudit — Sovereign Security Scanner for AI Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080B10;
+    --bg2:       #0D1117;
+    --bg3:       #111820;
+    --red:       #E63946;
+    --red-dim:   #7A1C23;
+    --green:     #00FF87;
+    --green-dim: #00A857;
+    --amber:     #FFB703;
+    --blue:      #4CC9F0;
+    --text:      #E8EDF2;
+    --muted:     #5A6475;
+    --border:    #1E2733;
+    --card:      #0F1621;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(78,204,240,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(78,204,240,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Noise texture ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 16px 0;
+    background: rgba(8,11,16,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  nav .inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--red); }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,135,0.4); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(0,255,135,0); }
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 160px 0 100px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 1px;
+    background: var(--red);
+  }
+
+  .hero h1 {
+    font-size: clamp(48px, 7vw, 88px);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -3px;
+    margin-bottom: 32px;
+    color: var(--text);
+  }
+
+  .hero h1 .accent { color: var(--red); }
+  .hero h1 .dim { color: var(--muted); }
+
+  .hero-sub {
+    font-size: 20px;
+    color: var(--muted);
+    max-width: 580px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    font-weight: 400;
+  }
+
+  .hero-sub strong { color: var(--text); font-weight: 600; }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--red);
+    color: #fff;
+    text-decoration: none;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 14px 28px;
+    border: none;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    transition: background 0.2s, transform 0.15s;
+  }
+
+  .btn-primary:hover {
+    background: #FF4D5A;
+    transform: translateY(-2px);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    text-decoration: none;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ── Scan counter ── */
+  .scan-ticker {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    margin-top: 48px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+
+  .ticker-label { color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .ticker-value { color: var(--green); font-size: 20px; font-weight: 700; }
+  .ticker-divider { width: 1px; height: 24px; background: var(--border); }
+
+  /* ── Layers section ── */
+  .section {
+    padding: 100px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
+  .section h2 {
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+    line-height: 1.1;
+  }
+
+  .section-intro {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 560px;
+    margin-bottom: 64px;
+    line-height: 1.7;
+  }
+
+  /* ── Layer cards ── */
+  .layers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .layer-card {
+    background: var(--card);
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+  }
+
+  .layer-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--red);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+
+  .layer-card:hover { background: #131C27; }
+  .layer-card:hover::before { transform: scaleX(1); }
+
+  .layer-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--red);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+
+  .layer-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .layer-tool {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  .layer-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Pricing ── */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  @media (max-width: 640px) { .pricing-grid { grid-template-columns: 1fr; } }
+
+  .price-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
+  }
+
+  .price-card:hover {
+    border-color: var(--red-dim);
+    transform: translateY(-4px);
+  }
+
+  .price-card.featured {
+    border-color: var(--red);
+  }
+
+  .price-card.featured::after {
+    content: 'DEEP SCAN';
+    position: absolute;
+    top: 20px; right: -28px;
+    background: var(--red);
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 4px 36px;
+    transform: rotate(45deg);
+  }
+
+  .price-type {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .price-amount {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .price-amount sup {
+    font-size: 24px;
+    font-weight: 400;
+    letter-spacing: 0;
+    vertical-align: super;
+    color: var(--muted);
+  }
+
+  .price-currency {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    margin-bottom: 28px;
+  }
+
+  .price-features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .price-features li {
+    font-size: 14px;
+    color: var(--muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.5;
+  }
+
+  .price-features li::before {
+    content: '→';
+    color: var(--red);
+    font-family: 'Space Mono', monospace;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .price-endpoint {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--blue);
+    background: var(--bg3);
+    padding: 10px 14px;
+    border-left: 2px solid var(--blue);
+  }
+
+  /* ── Protocol section ── */
+  .protocol-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+
+  @media (max-width: 768px) { .protocol-grid { grid-template-columns: 1fr; } }
+
+  .protocol-text h2 {
+    font-size: clamp(28px, 3vw, 42px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+    line-height: 1.1;
+  }
+
+  .protocol-text p {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+
+  .protocol-text strong { color: var(--text); }
+
+  .protocol-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .proto-step {
+    display: flex;
+    gap: 20px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .proto-step:last-child { border-bottom: none; }
+
+  .proto-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--red);
+    width: 28px;
+    flex-shrink: 0;
+    padding-top: 3px;
+  }
+
+  .proto-content {}
+
+  .proto-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .proto-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Terminal block ── */
+  .terminal {
+    background: #060A0F;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    overflow: hidden;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .terminal-bar {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #E63946; }
+  .dot-y { background: #FFB703; }
+  .dot-g { background: #00FF87; }
+
+  .terminal-title {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  .terminal-body {
+    padding: 24px;
+    font-size: 12px;
+    line-height: 2;
+  }
+
+  .t-prompt { color: var(--green); }
+  .t-cmd { color: var(--text); }
+  .t-comment { color: var(--muted); }
+  .t-key { color: var(--blue); }
+  .t-val { color: var(--amber); }
+  .t-str { color: #A8FF78; }
+  .t-success { color: var(--green); }
+  .t-warn { color: var(--red); }
+  .t-num { color: var(--amber); }
+
+  /* ── Threat showcase ── */
+  .threats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .threat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid;
+    padding: 20px 24px;
+    transition: transform 0.2s;
+  }
+
+  .threat-card:hover { transform: translateX(4px); }
+  .threat-card.critical { border-left-color: var(--red); }
+  .threat-card.high { border-left-color: var(--amber); }
+  .threat-card.medium { border-left-color: var(--blue); }
+
+  .threat-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    margin-bottom: 12px;
+    display: inline-block;
+  }
+
+  .threat-badge.critical { background: rgba(230,57,70,0.15); color: var(--red); }
+  .threat-badge.high { background: rgba(255,183,3,0.15); color: var(--amber); }
+  .threat-badge.medium { background: rgba(76,201,240,0.15); color: var(--blue); }
+
+  .threat-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .threat-id {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .threat-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 0;
+  }
+
+  .stats-inner {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+
+  @media (max-width: 640px) { .stats-inner { grid-template-columns: repeat(2, 1fr); } }
+
+  .stat-item {
+    padding: 0 32px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .stat-item:last-child { border-right: none; }
+
+  .stat-value {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .stat-value .unit {
+    font-size: 20px;
+    color: var(--red);
+    letter-spacing: 0;
+  }
+
+  .stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 48px 0;
+    border-top: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+  }
+
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+
+  .footer-left { display: flex; flex-direction: column; gap: 8px; }
+
+  .footer-tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--text); }
+
+  .wallet-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .wallet-display::before {
+    content: '◈';
+    color: var(--green);
+  }
+
+  /* ── Animations ── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fadeUp 0.6s forwards;
+  }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-up:nth-child(1) { animation-delay: 0.1s; }
+  .fade-up:nth-child(2) { animation-delay: 0.2s; }
+  .fade-up:nth-child(3) { animation-delay: 0.3s; }
+  .fade-up:nth-child(4) { animation-delay: 0.4s; }
+  .fade-up:nth-child(5) { animation-delay: 0.5s; }
+
+  /* ── Divider ── */
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  /* ── Glow accents ── */
+  .glow-red {
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(230,57,70,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .scan-animation {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scan-animation::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scan 3s ease-in-out infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .nav-links { display: none; }
+    .hero { padding: 120px 0 80px; }
+    .stats-inner { gap: 24px; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); padding: 16px 0; }
+    .stat-item:last-child { border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="inner">
+    <a href="/" class="logo">Omni<span>Audit</span></a>
+    <ul class="nav-links">
+      <li><a href="#layers">Layers</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#protocol">Protocol</a></li>
+      <li><a href="/payment-info">API</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      LIVE · LHR
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="glow-red" style="top:-200px;right:-200px;"></div>
+  <div class="container">
+    <div class="hero-eyebrow fade-up">Sovereign Security for the Agent Economy</div>
+    <h1 class="fade-up">
+      The Security<br>
+      Scanner <span class="accent">Agents</span><br>
+      <span class="dim">Can Trust</span>
+    </h1>
+    <p class="hero-sub fade-up">
+      OmniAudit runs <strong>7 layers of analysis</strong> on every SKILL.md file and code repo — from AST parsing to AI-powered cross-file threat synthesis. Every report is <strong>cryptographically signed</strong> and paid in USDC on Base.
+    </p>
+    <div class="hero-actions fade-up">
+      <a href="#pricing" class="btn-primary">
+        ⬡ View Pricing
+      </a>
+      <a href="/payment-info" class="btn-secondary">
+        API Reference →
+      </a>
+    </div>
+
+    <div class="scan-ticker fade-up">
+      <span class="ticker-label">Patrols Run</span>
+      <span class="ticker-value" id="patrol-count">31+</span>
+      <div class="ticker-divider"></div>
+      <span class="ticker-label">Network</span>
+      <span class="ticker-value" style="font-size:14px;color:var(--blue);">Base Mainnet</span>
+      <div class="ticker-divider"></div>
+      <span class="ticker-label">Settlement</span>
+      <span class="ticker-value" style="font-size:14px;color:var(--green);">Instant USDC</span>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="container">
+    <div class="stats-inner">
+      <div class="stat-item">
+        <div class="stat-value">7<span class="unit">×</span></div>
+        <div class="stat-label">Scan Layers</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">$0<span class="unit">.25</span></div>
+        <div class="stat-label">Per Scan · USDC</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">Ed<span class="unit">25519</span></div>
+        <div class="stat-label">Signed Reports</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">x<span class="unit">402</span></div>
+        <div class="stat-label">Payment Protocol</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- LAYERS -->
+<section class="section" id="layers">
+  <div class="container">
+    <div class="section-label">Detection Stack</div>
+    <h2>7 Layers of<br>Threat Analysis</h2>
+    <p class="section-intro">Every scan runs a full multi-layer pipeline. No single tool is trusted alone — findings are cross-validated across the entire stack.</p>
+
+    <div class="layers-grid">
+      <div class="layer-card scan-animation">
+        <div class="layer-num">LAYER 01</div>
+        <div class="layer-name">AST & Taint Analysis</div>
+        <div class="layer-tool">Semgrep · CWE-mapped rules</div>
+        <div class="layer-desc">Static analysis with dataflow tracking. Catches shell injection, SQL injection, path traversal, and hardcoded secrets at the syntax tree level.</div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-num">LAYER 02</div>
+        <div class="layer-name">Malware Signatures</div>
+        <div class="layer-tool">YARA · Custom rulesets</div>
+        <div class="layer-desc">Pattern matching against known AMOS/Vidar variants, reverse shell payloads, base64 decode chains, and OpenClaw credential harvesters.</div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-num">LAYER 03</div>
+        <div class="layer-name">Credential Detection</div>
+        <div class="layer-tool">detect-secrets · 40+ detectors</div>
+        <div class="layer-desc">Scans for hardcoded API keys, wallet private keys, seed phrases, OAuth tokens, and database credentials across all file types.</div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-num">LAYER 04</div>
+        <div class="layer-name">AI Threat Analysis</div>
+        <div class="layer-tool">Gemini 2.0 Flash · Prompt injection</div>
+        <div class="layer-desc">LLM-powered analysis of SKILL.md files for prompt injection, hidden instructions, invisible unicode, and agent manipulation patterns.</div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-num">LAYER 05</div>
+        <div class="layer-name">Dependency Audit</div>
+        <div class="layer-tool">OSV.dev · CVE database</div>
+        <div class="layer-desc">Deep scan: parses requirements.txt, package.json, and openclaw.plugin.json — queries OSV for known CVEs in every pinned dependency.</div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-num">LAYER 06</div>
+        <div class="layer-name">Cross-File Synthesis</div>
+        <div class="layer-tool">Gemini 2.0 · Distributed patterns</div>
+        <div class="layer-desc">Finds multi-file attack chains invisible to per-file scanners — where file A harvests and file B exfiltrates, neither looking malicious alone.</div>
+      </div>
+      <div class="layer-card" style="grid-column: span 2;">
+        <div class="layer-num">LAYER 07</div>
+        <div class="layer-name">Historical Diff</div>
+        <div class="layer-tool">Ed25519 fingerprints · Per-package history</div>
+        <div class="layer-desc">Deep scan: compares against the last known-good scan of the same package. New findings since the last audit are flagged explicitly — catch supply chain attacks that evolve incrementally.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- THREATS -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">What We Catch</div>
+    <h2>Real Threats.<br>Flagged Automatically.</h2>
+    <p class="section-intro">OmniAudit patrols Moltbook feeds continuously, scanning every code block and SKILL.md for known attack patterns.</p>
+
+    <div class="threats-grid">
+      <div class="threat-card critical">
+        <span class="threat-badge critical">Critical</span>
+        <div class="threat-title">Credential Harvester</div>
+        <div class="threat-id">yara:AMOS_OpenClaw_Credential_Harvest</div>
+        <div class="threat-desc">Reads ~/.openclaw/device.json gateway tokens and exfiltrates to external server via HTTP.</div>
+      </div>
+      <div class="threat-card critical">
+        <span class="threat-badge critical">Critical</span>
+        <div class="threat-title">Prompt Injection</div>
+        <div class="threat-id">llm:hidden-instruction</div>
+        <div class="threat-desc">SKILL.md containing hidden instructions that override agent safety guidelines using invisible unicode.</div>
+      </div>
+      <div class="threat-card critical">
+        <span class="threat-badge critical">Critical</span>
+        <div class="threat-title">Reverse Shell</div>
+        <div class="threat-id">yara:Reverse_Shell_Pattern</div>
+        <div class="threat-desc">Socket connect-back payload executing /bin/sh via os.dup2 — classic remote code execution.</div>
+      </div>
+      <div class="threat-card high">
+        <span class="threat-badge high">High</span>
+        <div class="threat-title">Shell Injection</div>
+        <div class="threat-id">semgrep:shell-injection-subprocess</div>
+        <div class="threat-desc">subprocess.Popen with shell=True and unsanitized user input — enables command injection.</div>
+      </div>
+      <div class="threat-card high">
+        <span class="threat-badge high">High</span>
+        <div class="threat-title">Base64 Payload Chain</div>
+        <div class="threat-id">yara:Obfuscated_Base64_Payload_Chain</div>
+        <div class="threat-desc">Multi-stage decode chain executing an eval() on the decoded result — staged dropper pattern.</div>
+      </div>
+      <div class="threat-card medium">
+        <span class="threat-badge medium">Medium</span>
+        <div class="threat-title">Vulnerable Dependency</div>
+        <div class="threat-id">osv:GHSA-xxxx-xxxx</div>
+        <div class="threat-desc">Known CVE in pinned dependency detected via OSV.dev batch query across all manifests.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-label">Pricing</div>
+    <h2>Pay Per Scan.<br>No Subscription.</h2>
+    <p class="section-intro">Agents pay in USDC on Base via the x402 protocol. Settlement is instant, direct to wallet — no intermediary, no platform fee.</p>
+
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-type">Standard Scan</div>
+        <div class="price-amount"><sup>$</sup>0.25</div>
+        <div class="price-currency">USDC · Base Mainnet</div>
+        <ul class="price-features">
+          <li>Semgrep AST analysis</li>
+          <li>YARA malware signatures</li>
+          <li>detect-secrets credential scan</li>
+          <li>Gemini LLM code & SKILL.md analysis</li>
+          <li>Ed25519 signed report</li>
+          <li>Stored & retrievable by audit ID</li>
+        </ul>
+        <div class="price-endpoint">POST /audit</div>
+      </div>
+      <div class="price-card featured">
+        <div class="price-type">Deep Scan</div>
+        <div class="price-amount"><sup>$</sup>1.00</div>
+        <div class="price-currency">USDC · Base Mainnet</div>
+        <ul class="price-features">
+          <li>All standard layers across every file</li>
+          <li>OSV dependency CVE audit</li>
+          <li>Cross-file LLM threat synthesis</li>
+          <li>Historical diff vs last scan</li>
+          <li>New findings flagged explicitly</li>
+          <li>Full repo ZIP accepted</li>
+        </ul>
+        <div class="price-endpoint">POST /audit/deep</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- PROTOCOL -->
+<section class="section" id="protocol">
+  <div class="container">
+    <div class="protocol-grid">
+      <div class="protocol-text">
+        <div class="section-label">Integration</div>
+        <h2>Built for<br>Autonomous Agents</h2>
+        <p>OmniAudit speaks x402 — the emerging payment protocol for machine-to-machine transactions. Your agent discovers the price, pays in USDC, and gets a signed report back. <strong>Zero human involvement required.</strong></p>
+        <p>Reports are cryptographically signed with Ed25519. The sovereign public key is exposed at <code style="font-family:'Space Mono',monospace;font-size:13px;color:var(--blue);">/health</code> — any agent can verify a report's authenticity independently.</p>
+      </div>
+      <div class="protocol-steps">
+        <div class="proto-step">
+          <div class="proto-num">01</div>
+          <div class="proto-content">
+            <div class="proto-title">Discover</div>
+            <div class="proto-desc">Agent hits <code style="font-family:'Space Mono',monospace;color:var(--blue);">GET /payment-info</code> — learns the price, network, and wallet address.</div>
+          </div>
+        </div>
+        <div class="proto-step">
+          <div class="proto-num">02</div>
+          <div class="proto-content">
+            <div class="proto-title">Pay</div>
+            <div class="proto-desc">Sends USDC on Base with the x402 payment header attached to the scan request.</div>
+          </div>
+        </div>
+        <div class="proto-step">
+          <div class="proto-num">03</div>
+          <div class="proto-content">
+            <div class="proto-title">Scan</div>
+            <div class="proto-desc">All 7 layers run in parallel. Results aggregated into a single risk score and verdict.</div>
+          </div>
+        </div>
+        <div class="proto-step">
+          <div class="proto-num">04</div>
+          <div class="proto-content">
+            <div class="proto-title">Verify</div>
+            <div class="proto-desc">Report returned with Ed25519 signature. Permanently stored — retrievable by audit ID at any time.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- TERMINAL EXAMPLE -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">Quick Start</div>
+    <h2>One Request.<br>Full Report.</h2>
+    <p class="section-intro" style="margin-bottom:40px;">Any agent with an x402-compatible wallet can start scanning in seconds.</p>
+
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title">omniaudit · standard scan · x402</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-comment"># 1. Discover pricing</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">curl https://omniaudit.fly.dev/payment-info</span></div>
+        <div><span class="t-key">"price_usdc"</span><span class="t-cmd">: </span><span class="t-num">0.25</span><span class="t-comment">  # USDC on Base</span></div>
+        <br>
+        <div><span class="t-comment"># 2. Submit code with x402 payment header</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">curl -X POST https://omniaudit.fly.dev/audit \</span></div>
+        <div><span class="t-cmd">&nbsp;&nbsp;-H </span><span class="t-str">"X-Payment: &lt;x402-usdc-payload&gt;"</span><span class="t-cmd"> \</span></div>
+        <div><span class="t-cmd">&nbsp;&nbsp;-d </span><span class="t-str">'{"code":"..."}'</span></div>
+        <br>
+        <div><span class="t-comment"># 3. Signed report returned instantly</span></div>
+        <div><span class="t-key">"verdict"</span><span class="t-cmd">:    </span><span class="t-warn">"BLOCKED"</span><span class="t-comment">  # CRITICAL findings detected</span></div>
+        <div><span class="t-key">"risk_score"</span><span class="t-cmd">: </span><span class="t-num">47</span></div>
+        <div><span class="t-key">"findings"</span><span class="t-cmd">:   </span><span class="t-num">3</span><span class="t-comment">  # CRITICAL · HIGH · HIGH</span></div>
+        <div><span class="t-key">"signature"</span><span class="t-cmd">:  </span><span class="t-str">"ed25519:a3f8..."</span><span class="t-comment">  # verify at /health</span></div>
+        <div><span class="t-key">"audit_id"</span><span class="t-cmd">:   </span><span class="t-str">"8f2c1a4d..."</span><span class="t-comment">  # permanent record</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <a href="/" class="logo">Omni<span>Audit</span></a>
+        <span class="footer-tagline">Sovereign security for the agent economy</span>
+      </div>
+      <ul class="footer-links">
+        <li><a href="/health">Status</a></li>
+        <li><a href="/payment-info">API</a></li>
+        <li><a href="#layers">Layers</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+      </ul>
+      <div class="wallet-display" id="wallet-addr">Loading wallet...</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Fetch live data from the API
+  fetch('/payment-info')
+    .then(r => r.json())
+    .then(d => {
+      const addr = d.wallet || '';
+      const short = addr.slice(0,6) + '...' + addr.slice(-4);
+      document.getElementById('wallet-addr').textContent = short + ' · Base Mainnet';
+    })
+    .catch(() => {
+      document.getElementById('wallet-addr').textContent = 'Base Mainnet · USDC';
+    });
+
+  // Animate elements on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.layer-card, .threat-card, .price-card, .proto-step, .stat-item').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(16px)';
+    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>

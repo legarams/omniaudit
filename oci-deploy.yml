@@ -1,0 +1,154 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  OmniAudit — Oracle Cloud Infrastructure (OCI) Deployment Config
+#  Replaces: railway.toml
+#
+#  Deployment path:
+#    1. Push image to OCI Container Registry (OCIR)
+#    2. Deploy API via OCI Container Instances  (or OKE for larger scale)
+#    3. Schedule patrol job via OCI Scheduler
+#    4. Provision PostgreSQL via OCI Database (Autonomous DB or MySQL HeatWave)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── 1. OCI Container Registry ────────────────────────────────────────────────
+# Build and push:
+#   docker build -t <region>.ocir.io/<tenancy-namespace>/omniaudit:latest .
+#   docker push <region>.ocir.io/<tenancy-namespace>/omniaudit:latest
+#
+# Regions examples:
+#   Frankfurt  → fra.ocir.io
+#   Ashburn    → iad.ocir.io
+#   London     → lhr.ocir.io
+#   Sydney     → syd.ocir.io
+
+image:
+  registry: "<region>.ocir.io/<tenancy-namespace>/omniaudit"
+  tag: "latest"
+
+# ── 2. OCI Container Instance (API service) ───────────────────────────────────
+container_instance:
+  display_name: "omniaudit-api"
+  shape: "CI.Standard.E4.Flex"     # 1 OCPU, 2 GB RAM — upgrade to E4.Flex 2/4 for production
+  availability_domain: "AD-1"       # Match your tenancy's AD
+
+  containers:
+    - display_name: "omniaudit-api"
+      image_url: "<region>.ocir.io/<tenancy-namespace>/omniaudit:latest"
+      
+      # Port mapping — OCI load balancer will forward 443 → 8080
+      ports:
+        - container_port: 8080
+          protocol: TCP
+
+      # ── Environment variables ─────────────────────────────────────────────
+      # Store secrets in OCI Vault; reference them here as vault secret IDs.
+      # Plaintext vars (non-sensitive) are listed inline.
+      environment_variables:
+        # Plaintext
+        PYTHONPATH: "/app/src"
+        PORT: "8080"
+        WORKERS: "1"
+        DB_SSL: "require"
+        FACILITATOR_URL: "https://x402.coinbase.com/facilitate"
+        AUDIT_PRICE_USDC: "0.25"
+        AUDIT_PRICE_DEEP_USDC: "1.00"
+        # Set this to your load balancer's public URL after deployment
+        # e.g. https://your-lb-ip  or  https://omniaudit.yourdomain.com
+        PUBLIC_API_URL: "https://<your-load-balancer-hostname>"
+
+        # Secrets — retrieve from OCI Vault (replace ocid1.vaultsecret... with real OCIDs)
+        # In the OCI Console: Container Instance → Environment Variables → Secret Source
+        WALLET_ADDRESS:     "<vault-secret-ocid-wallet-address>"
+        SOVEREIGN_KEY_HEX:  "<vault-secret-ocid-sovereign-key>"
+        ADMIN_TOKEN:        "<vault-secret-ocid-admin-token>"
+        GEMINI_API_KEY:     "<vault-secret-ocid-gemini-key>"
+
+        # PostgreSQL — OCI Autonomous DB connection string format:
+        # postgresql+asyncpg://user:password@<adb-host>:5432/omniaudit
+        DATABASE_URL:       "<vault-secret-ocid-database-url>"
+
+      # Health check (OCI Container Instance native probe)
+      health_checks:
+        - name: "api-liveness"
+          type: "HTTP"
+          path: "/health"
+          port: 8080
+          interval_in_seconds: 30
+          timeout_in_seconds: 10
+          failure_threshold: 3
+          success_threshold: 1
+
+      resource_config:
+        memory_limit_in_gbs: 2.0
+        vcpus_limit: 1.0
+
+# ── 3. OCI Scheduler — Patrol Cron Job ────────────────────────────────────────
+# Patrol triggered via OCI Scheduler HTTP action.
+# OCI Scheduler calls an HTTP action (your patrol container) on a schedule.
+#
+# Create in OCI Console: Developer Services → Scheduler → Create Schedule
+# OR use OCI CLI:
+#   oci scheduler schedule create \
+#     --compartment-id <compartment-ocid> \
+#     --display-name "omniaudit-patrol" \
+#     --description "Hourly security patrol of Moltbook" \
+#     --schedule-type CRON \
+#     --cron-expression "0 * * * *" \
+#     --time-zone "UTC" \
+#     --action-type HTTP \
+#     --action-url "https://<your-api-hostname>/patrol/trigger" \
+#     --action-http-method POST \
+#     --action-headers '{"X-Admin-Token": "<your-admin-token>"}'
+
+patrol_schedule:
+  display_name: "omniaudit-patrol-hourly"
+  schedule_type: "CRON"
+  cron_expression: "0 * * * *"
+  time_zone: "UTC"
+  # Alternatively, run patrol as a separate Container Instance:
+  # docker run --rm <image> python src/patrol.py
+  # Set these env vars:
+  #   AUDIT_API_URL   = http://<container-instance-ip>:8080/audit
+  #   PUBLIC_API_URL  = https://<your-load-balancer-hostname>
+  #   ADMIN_TOKEN     = <your-admin-token>
+
+# ── 4. OCI Load Balancer ──────────────────────────────────────────────────────
+load_balancer:
+  shape: "flexible"
+  min_bandwidth_in_mbps: 10
+  max_bandwidth_in_mbps: 100
+  
+  listeners:
+    - name: "https-443"
+      port: 443
+      protocol: "HTTPS"
+      certificate: "<oci-certificate-ocid-or-lets-encrypt>"
+  
+  backend_sets:
+    - name: "omniaudit-api-backends"
+      policy: "ROUND_ROBIN"
+      health_checker:
+        protocol: "HTTP"
+        url_path: "/health"
+        port: 8080
+        return_code: 200
+
+# ── 5. OCI Autonomous Database (PostgreSQL-compatible) ───────────────────────
+database:
+  type: "Autonomous Database (PostgreSQL)"   # Free Tier: Autonomous DB Always Free available
+  # OR use: OCI Database with PostgreSQL (fully managed)
+  display_name: "omniaudit-db"
+  
+  # Connection string format for asyncpg:
+  # postgresql://admin:<password>@<adb-private-endpoint>:5432/omniaudit
+  #
+  # For OCI PostgreSQL Service (recommended):
+  #   oci db postgresql ... (set up in Console under Databases → PostgreSQL)
+  #
+  # Free Tier option:
+  #   Use OCI Autonomous Database (JSON) — supports PostgreSQL wire protocol
+  #   Endpoint available under: DB Connection → Connection Strings → TLS
+
+  notes: |
+    - Enable Private Endpoint for security (VCN-only access)
+    - Whitelist only your Container Instance subnet in the DB Security Group
+    - Use SSL/TLS connection (asyncpg supports ssl='require')

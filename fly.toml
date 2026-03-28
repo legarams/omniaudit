@@ -1,0 +1,74 @@
+# OmniAudit — Fly.io (v2, cost-optimised)
+# Target: ~$0/mo at zero traffic, <$5/mo under light load
+#
+# Secrets — set via `fly secrets set`, never commit here:
+#   WALLET_ADDRESS              SOVEREIGN_KEY_HEX
+#   ADMIN_TOKEN                 GEMINI_API_KEY
+#   LITESTREAM_ACCESS_KEY_ID    LITESTREAM_SECRET_ACCESS_KEY
+#
+# Provision Tigris bucket once (free, 5 GB):
+#   fly storage create --name omniaudit-db
+
+app            = 'omniaudit'
+primary_region = 'lhr'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[processes]
+  app = "sh -c 'uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1'"
+
+[env]
+  AUDIT_API_URL           = "http://localhost:8080/audit"
+  AUDIT_PRICE_USDC        = "0.25"
+  AUDIT_PRICE_DEEP_USDC   = "1.00"
+  DB_BACKEND              = "sqlite"
+  SQLITE_PATH             = "/app/data/omniaudit.db"
+  DB_SSL                  = "disable"
+  PUBLIC_API_URL          = "https://omniaudit.fly.dev"
+  MOLTBOOK_API            = "https://www.moltbook.com/api/v1"
+  MAX_CONCURRENT_STANDARD = "2"
+  MAX_CONCURRENT_DEEP     = "1"
+  MAX_DM_REPLIES_PER_CONV = "3"
+  PYTHONPATH              = "/app/src"
+  PORT                    = "8080"
+  PATROL_INTERVAL_SECONDS = "3600"
+  MAX_POSTS               = "30"
+  REQUEST_TIMEOUT         = "20"
+  MAX_CLEAN_COMMENTS      = "3"
+  # MCP server URL — shown in /mcp-info for Claude Desktop / Cursor config
+  MCP_URL                 = "https://omniaudit.fly.dev/mcp"
+  FACILITATOR_URL         = "https://x402.coinbase.com/facilitate"
+  LITESTREAM_REPLICA_URL  = "s3://omniaudit-db/omniaudit.db"
+
+# [[mounts]] is correctly an array (multiple mounts allowed)
+[[mounts]]
+  source      = 'omniaudit_data'
+  destination = '/app/data'
+
+# [http_service] is a single block — single brackets, NOT [[double]]
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = true
+  auto_start_machines  = true
+  min_machines_running = 0
+  processes            = ["app"]
+
+  [http_service.concurrency]
+    type       = 'requests'
+    hard_limit = 3
+    soft_limit = 2
+
+  [[http_service.checks]]
+    grace_period = "1m"
+    interval     = "60s"
+    method       = "GET"
+    timeout      = "15s"
+    path         = "/health"
+
+# [vm] is a single block — single brackets
+[vm]
+  memory   = '1gb'
+  cpu_kind = 'shared'
+  cpus     = 1
