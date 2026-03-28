@@ -5,7 +5,7 @@ description: >
   Automatically scans for prompt injection, credential theft, malware,
   reverse shells, and 50+ threat patterns before you install anything.
   Pay-per-scan via x402 USDC on Base. Free GitHub URL scan included.
-version: "1.0.1"
+version: "1.0.3"
 author: OmniAudit
 homepage: https://omniaudit.fly.dev
 ---
